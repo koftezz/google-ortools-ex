@@ -41,13 +41,37 @@ def create_data_model():
             (7, 8),  # 14
             (10, 15),  # 15
             (11, 15),  # 16
-        ], 'demands': [0, 1, 1, 2, 3, 2, 3, 3, 1, 1, 2, 1, 2, 3, 3, 1, 1],
-        'vehicle_capacities': [10, 10, 15, 15], 'num_vehicles': 4, 'depot': 0}
+        ],
+        'demands': [0, 1, 1, 2, 3, 2, 3, 3, 1, 1, 2, 1, 2, 3, 3, 1, 1],
+        'vehicle_capacities': [10, 10, 15, 15],
+        'num_vehicles': 4,
+        'depot': 0,
+        'pickups_deliveries': [
+            # node_from, node_to
+            (1, 6),
+            (2, 10),
+            (4, 3),
+            (10, 15)
+        ]
+    }
     return data
 
 
 def print_solution(data, manager, routing, solution):
     """Prints solution on console."""
+
+    total_time_penalty = 0
+    total_drops = 0
+    dropped_nodes = 'Dropped nodes:'
+    for node in range(routing.Size()):
+        if routing.IsStart(node) or routing.IsEnd(node):
+            continue
+        if solution.Value(routing.NextVar(node)) == node and data['demands'][
+            manager.IndexToNode(node)] > 0:
+            dropped_nodes += ' {0}'.format(manager.IndexToNode(node))
+            total_drops += 1
+            total_time_penalty += 3600
+
     total_load = 0
     time_dimension = routing.GetDimensionOrDie('Time')
     total_time = 0
@@ -66,7 +90,7 @@ def print_solution(data, manager, routing, solution):
                 manager.IndexToNode(index), solution.Min(time_var),
                 solution.Max(time_var))
             previous_index = index
-            index = solution.Value(routing.NextVar(index))
+            index = solution.Value(routing.NextVar(previous_index))
         plan_output += 'Node: {0} & Load({1})'.format(
             manager.IndexToNode(index),
             route_load)
@@ -80,6 +104,7 @@ def print_solution(data, manager, routing, solution):
         print(plan_output)
         total_load += route_load
         total_time += solution.Min(time_var)
+    print(dropped_nodes + f" - Total: {total_drops}\n")
     print('Total load of all routes: {}'.format(total_load))
     print('Total time of all routes: {}min'.format(total_time))
 
@@ -91,6 +116,7 @@ def _demand_callback(manager, data):
         # Convert from routing variable Index to demands NodeIndex.
         from_node = manager.IndexToNode(from_index)
         return data['demands'][from_node]
+
     return demand_callback
 
 
@@ -106,7 +132,7 @@ def _time_callback(manager, data):
     return time_callback
 
 
-def _time_window_constraints(routing, manager, data, time_callback_index):
+def _time_dimension(routing, time_callback_index):
     time = 'Time'
     routing.AddDimension(
         time_callback_index,
@@ -114,7 +140,11 @@ def _time_window_constraints(routing, manager, data, time_callback_index):
         30,  # maximum time per vehicle
         False,  # Don't force start cumul to zero.
         time)
-    time_dimension = routing.GetDimensionOrDie(time)
+    return routing.GetDimensionOrDie(time)
+
+
+def _time_window_constraints(routing, manager, data, time_callback_index,
+                             time_dimension):
     # Add time window constraints for each location except depot.
     for location_idx, time_window in enumerate(data['time_windows']):
         if location_idx == data['depot']:
@@ -129,6 +159,12 @@ def _time_window_constraints(routing, manager, data, time_callback_index):
             data['time_windows'][depot_idx][0],
             data['time_windows'][depot_idx][1])
 
+    for i in range(data['num_vehicles']):
+        routing.AddVariableMinimizedByFinalizer(
+            time_dimension.CumulVar(routing.Start(i)))
+        routing.AddVariableMinimizedByFinalizer(
+            time_dimension.CumulVar(routing.End(i)))
+
 
 def _capacity_constraints(routing, data, capacity_callback_index):
     routing.AddDimensionWithVehicleCapacity(
@@ -137,6 +173,26 @@ def _capacity_constraints(routing, data, capacity_callback_index):
         data['vehicle_capacities'],  # vehicle maximum capacities
         True,  # start cumul to zero
         name='Capacity')
+
+
+def _pickups_deliveries(routing, manager, data, time_dimension):
+    # Define Transportation Requests.
+    for request in data['pickups_deliveries']:
+        pickup_index = manager.NodeToIndex(request[0])
+        delivery_index = manager.NodeToIndex(request[1])
+        # print(f"Pickup: {pickup_index} - Delivery: {delivery_index}")
+        routing.AddPickupAndDelivery(pickup_index, delivery_index)
+        routing.solver().Add(
+            routing.VehicleVar(pickup_index) == routing.VehicleVar(
+                delivery_index))
+        routing.solver().Add(
+            time_dimension.CumulVar(pickup_index) <= time_dimension.CumulVar(
+                delivery_index))
+
+
+def _penalty_constraints(routing, manager, data, penalty=3600):
+    for node in range(1, len(data['time_matrix'])):
+        routing.AddDisjunction([manager.NodeToIndex(node)], penalty)
 
 
 def main():
@@ -164,7 +220,19 @@ def main():
         _time_callback(manager, data))
     # Define cost of each arc.
     routing.SetArcCostEvaluatorOfAllVehicles(time_callback_index)
-    _time_window_constraints(routing, manager, data, time_callback_index)
+
+    # Create time dimension
+    time_dimension = _time_dimension(routing, time_callback_index)
+
+    # Add pick-up & deliveries constraints
+    _pickups_deliveries(routing, manager, data, time_dimension)
+
+    # Add time window constraints
+    _time_window_constraints(routing, manager, data, time_callback_index,
+                             time_dimension)
+
+    # Allow to drop nodes
+    _penalty_constraints(routing, manager, data, penalty=36000)
 
     # Setting first solution heuristic.
     search_parameters = pywrapcp.DefaultRoutingSearchParameters()
@@ -180,7 +248,7 @@ def main():
     # options for local search strategies (also called metaheuristics)
     # https://developers.google.com/optimization/routing/routing_options#local_search_options
     search_parameters.local_search_metaheuristic = (
-        routing_enums_pb2.LocalSearchMetaheuristic.TABU_SEARCH)
+        routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH)
 
     # search limits
     # terminate the solver after it reaches a specified limit,
