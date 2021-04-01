@@ -15,7 +15,7 @@ There are 5 modules.
 - [Routing module](https://google.github.io/or-tools/python/ortools/constraint_solver/pywrapcp.html)
 - [Domain module](https://google.github.io/or-tools/python/ortools/util/sorted_interval_list.html)
 
-This is a T[wo-index vehicle flow formulation](https://arxiv.org/pdf/1606.01935.pdf) with [Miller-Tucker-Zemlin subtour elimination constraint.](https://how-to.aimms.com/Articles/332/332-Miller-Tucker-Zemlin-formulation.html)
+This is a [Two-index vehicle flow formulation](https://arxiv.org/pdf/1606.01935.pdf) with [Miller-Tucker-Zemlin subtour elimination constraint.](https://how-to.aimms.com/Articles/332/332-Miller-Tucker-Zemlin-formulation.html)
 
 ![Google%20OR-Tools%2041fee5f704b949a6972b7f378b6168af/Untitled.png](Google%20OR-Tools%2041fee5f704b949a6972b7f378b6168af/Untitled.png)
 
