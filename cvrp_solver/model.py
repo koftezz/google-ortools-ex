@@ -1,49 +1,20 @@
 from ortools.linear_solver import pywraplp
 
-# from cvrp_solver.constraints import Constraints
-# from cvrp_solver.optimization_params import OptimizationParams
-# from cvrp_solver.problem_params import ProblemParams
-# from cvrp_solver.objective_function import ObjectiveFunction
-# from cvrp_solver.data_generation import DataGeneration
-from constraints import Constraints
-# from variables import Variables
-from cvrp_solver.objective_function import ObjectiveFunction
-
 
 class Model(object):
 
-    def __init__(self,
-                 # data,
-                 # optimization_params,
-                 # problem_params
-                 # vehicles,
-                 # customers,
-                 # capacity
-                 ):
-        # self.vehicles = vehicles
-        # self.customers = customers
-        # self.capacity = capacity
-        # self.data = data
-        # self.problemParams = selfproblem_params
-        # self.optimizationParams = optimization_params
+    def __init__(self):
         self.x = dict()
         self.y = dict()
 
-
-    # self.problemParams = ProblemParams(self.data)
-    # self.optimizationParams = OptimizationParams()
         self.model = Model.create_model(self)
-        print(self.model)
+
         self.model = Model.generate_variables(self)
         print(self.model.NumVariables())
         Model.generate_constraints(self)
         print(self.model.NumConstraints())
         Model.objective_function(self)
 
-        # model = Constraints(self.model, self.problemParams)
-        # print(self.model.NumVariables())
-        # model = ObjectiveFunction(model, self.problemParams)
-        #
         if self.optimization_params.enable_output:
             self.model.EnableOutput()
         if self.optimization_params.time_limit:
@@ -63,18 +34,14 @@ class Model(object):
             self.y[j] = self.model.NumVar(lb=0, ub=self.model.infinity(),
                                           name='y[{0}]'.format(j))
         return self.model
-        # print(self.model)
-        # self.model = Constraints(self.model, self.problemParams)
-        # self.model = ObjectiveFunction(self.model, self.optimizationParams)
 
-    # @staticmethod
     def create_model(self):
-        # model = pywraplp.Solver.CreateSolver('SCIP')
         if self.optimization_params.solver == "MIP":
             model = pywraplp.Solver('CVRP',
-                            pywraplp.Solver.CBC_MIXED_INTEGER_PROGRAMMING)
+                                    pywraplp.Solver.CBC_MIXED_INTEGER_PROGRAMMING)
         elif self.optimization_params.solver == "SCIP":
-            model = pywraplp.Solver.CreateSolver(self.optimization_params.solver)
+            model = pywraplp.Solver.CreateSolver(
+                self.optimization_params.solver)
         else:
             print("undefined solver")
             pass
@@ -130,7 +97,6 @@ class Model(object):
         for i in V:
             for j in V:
                 if x[i, j].SolutionValue() == 1:
-                    # print("x{0}_{1}".format(i, j), x[i, j].SolutionValue())
                     res[i, j] = 1
 
         vehicle = 0
@@ -159,7 +125,6 @@ class Model(object):
                         a = False
             vehicle += 1
             output = "Route {0} for Vehicle {1}\n".format(vehicle, vehicle)
-            # route.append(len(V)-1)
             for i in route:
                 output += "Node: {0} -> ".format(i)
             output += "Node: {0}".format(len(V) - 1)

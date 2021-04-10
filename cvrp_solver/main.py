@@ -1,8 +1,6 @@
 from model import Model
-# from cvrp_solver.constraints import Constraints
 from optimization_params import OptimizationParams
 from problem_params import ProblemParams
-# from cvrp_solver.objective_function import ObjectiveFunction
 from data_generation import DataGeneration
 
 
